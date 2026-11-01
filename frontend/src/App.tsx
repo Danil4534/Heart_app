@@ -1,13 +1,13 @@
-import { useEffect } from 'react';
-import { Route, Routes } from 'react-router-dom';
-import { Layout } from './components/Layout';
-import { BestVsBaselinePage } from './pages/BestVsBaselinePage';
-import { DatasetsComparePage } from './pages/DatasetsComparePage';
-import { ExperimentsPage } from './pages/ExperimentsPage';
-import { OverviewPage } from './pages/OverviewPage';
-import { PredictPage } from './pages/PredictPage';
-import { PreprocessingPage } from './pages/PreprocessingPage';
-import { useAppStore } from './store/useAppStore';
+import { useEffect } from "react";
+import { Route, Routes } from "react-router-dom";
+import { Layout } from "./components/Layout";
+import { useAppStore } from "./store/useAppStore";
+import { OverviewPage } from "./pages/OverviewPage";
+import { PreprocessingPage } from "./pages/PreprocessingPage";
+import { ExperimentsPage } from "./pages/ExperimentsPage";
+import { BestVsBaselinePage } from "./pages/BestVsBaselinePage";
+import { DatasetsComparePage } from "./pages/DatasetsComparePage";
+import { PredictPage } from "./pages/PredictPage";
 
 export default function App() {
   const { fetchDatasets, fetchDatasetComparisons } = useAppStore();

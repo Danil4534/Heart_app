@@ -98,7 +98,7 @@ export interface PreprocessingStep {
   step: number;
   name: string;
   transformer: string;
-  columns: unknown;
+  columns: any;
   description: string;
 }
 

@@ -1,82 +1,96 @@
-import { useEffect } from 'react';
-import { Card } from '../components/Card';
-import { ConfigPicker } from '../components/ConfigPicker';
-import { DataTable } from '../components/DataTable';
-import { Heatmap } from '../components/Heatmap';
-import { Loader } from '../components/Loader';
-import { MetricSelect } from '../components/MetricSelect';
-import { useAppStore } from '../store/useAppStore';
+import { Card } from "@/components/Card";
+import { Loader } from "@/components/Loader";
+import { useAppStore } from "@/store/useAppStore";
 
-export function ExperimentsPage() {
-  const {
-    selectedDataset,
-    selectedMetric,
-    metricSource,
-    configs,
-    metricMatrix,
-    selectedConfigIds,
-    setSelectedConfigIds,
-    setSelectedMetric,
-    setMetricSource,
-    fetchMetricMatrix,
-    loading,
-  } = useAppStore();
+export function BestVsBaselinePage() {
+  const { summary, loading, selectedDataset } = useAppStore();
 
-  useEffect(() => {
-    void fetchMetricMatrix(selectedDataset);
-  }, [selectedDataset, metricSource, selectedMetric, fetchMetricMatrix]);
+  if (loading.summary) {
+    return <Loader label="Розрахунок порівняння…" />;
+  }
 
-  const configOptions = configs.map((config) => `${config.algo}|${config.method}`);
+  if (!summary) {
+    return <Card title="Немає даних">Порівняння недоступне.</Card>;
+  }
 
   return (
-    <div className="space-y-4">
-      <Card title="Порівняння всіх моделей" subtitle={`Датасет ${selectedDataset}`}>
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          <MetricSelect value={selectedMetric} onChange={setSelectedMetric} />
-          <label className="flex flex-col gap-2 text-sm text-slate-600 dark:text-slate-300">
-            <span>Джерело метрик</span>
-            <select
-              value={metricSource}
-              onChange={(event) => setMetricSource(event.target.value as 'cv' | 'test')}
-              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-brand-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-            >
-              <option value="cv">CV</option>
-              <option value="test">Test</option>
-            </select>
-          </label>
+    <div className="grid gap-4 xl:grid-cols-2">
+      <Card
+        title="Найкраща конфігурація"
+        subtitle={`Датасет ${selectedDataset}`}
+      >
+        <div className="space-y-3">
+          <div className="text-xl font-semibold">{summary.best.algo}</div>
+          <div className="text-sm text-slate-500 dark:text-slate-400">
+            {summary.best.method}
+          </div>
+          <div className="grid gap-2 md:grid-cols-2">
+            {Object.entries(summary.best_metrics.cv).map(([key, value]) => (
+              <div
+                key={key}
+                className="rounded-xl bg-slate-100 p-3 dark:bg-slate-800"
+              >
+                <div className="text-xs uppercase tracking-[0.1em] text-slate-500">
+                  {key}
+                </div>
+                <div className="mt-1 text-lg font-semibold">
+                  {value.toFixed(3)}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </Card>
 
-      {loading.matrix || loading.configs ? (
-        <Loader label="Оновлення матриці метрик…" />
-      ) : null}
-
-      {metricMatrix ? (
-        <Heatmap
-          title="Матриця алгоритм × метод"
-          methods={metricMatrix.methods}
-          algos={metricMatrix.algos}
-          values={metricMatrix.values}
-          metric={metricMatrix.metric}
-        />
-      ) : null}
-
-      <Card title="Вибір конфігурацій для порівняння" subtitle="Мультивибір моделей для графіків">
-        <ConfigPicker options={configOptions} value={selectedConfigIds} onChange={setSelectedConfigIds} />
+      <Card title="Базова лінія" subtitle={`Датасет ${selectedDataset}`}>
+        <div className="space-y-3">
+          <div className="text-xl font-semibold">{summary.baseline.algo}</div>
+          <div className="text-sm text-slate-500 dark:text-slate-400">
+            {summary.baseline.method}
+          </div>
+          <div className="grid gap-2 md:grid-cols-2">
+            {Object.entries(summary.baseline_metrics.cv).map(([key, value]) => (
+              <div
+                key={key}
+                className="rounded-xl bg-slate-100 p-3 dark:bg-slate-800"
+              >
+                <div className="text-xs uppercase tracking-[0.1em] text-slate-500">
+                  {key}
+                </div>
+                <div className="mt-1 text-lg font-semibold">
+                  {value.toFixed(3)}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       </Card>
 
-      <DataTable
-        columns={[
-          { key: 'algo', header: 'Алгоритм', sortable: true },
-          { key: 'method', header: 'Метод', sortable: true },
-          { key: 'cv', header: 'CV', render: (row) => row.cv?.f1?.toFixed(3) ?? '—', sortable: true },
-          { key: 'test', header: 'Test', render: (row) => row.test?.f1?.toFixed(3) ?? '—', sortable: true },
-          { key: 'fit_seconds', header: 'Fit (s)', sortable: true },
-        ]}
-        data={configs}
-        searchPlaceholder="Пошук по алгоритму або методу…"
-        exportFilename={`configs-${selectedDataset}.csv`}
-      />
+      <div className="xl:col-span-2">
+        <Card
+          title="Зміни щодо базового рівня"
+          subtitle="Δ за метриками CV / Test"
+        >
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            {Object.entries(summary.deltas.cv).map(([metric, value]) => (
+              <div
+                key={metric}
+                className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800"
+              >
+                <div className="text-xs uppercase tracking-[0.12em] text-slate-500">
+                  {metric}
+                </div>
+                <div className="mt-2 text-2xl font-semibold text-brand-600">
+                  {value.toFixed(3)}
+                </div>
+                <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  CV
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      </div>
     </div>
   );
 }

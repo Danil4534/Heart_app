@@ -1,26 +1,8 @@
-import type { ReactNode } from 'react';
-
-interface CardProps {
-  title?: string;
-  subtitle?: string;
-  action?: ReactNode;
-  children: ReactNode;
-  className?: string;
-}
-
-export function Card({ title, subtitle, action, children, className = '' }: CardProps) {
+export function Loader({ label = "Завантаження…" }: { label?: string }) {
   return (
-    <div className={`panel ${className}`}>
-      {(title || action || subtitle) && (
-        <div className="mb-4 flex items-start justify-between gap-3">
-          <div>
-            {title && <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{title}</h2>}
-            {subtitle && <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{subtitle}</p>}
-          </div>
-          {action}
-        </div>
-      )}
-      {children}
+    <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+      <span className="h-4 w-4 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
+      {label}
     </div>
   );
 }

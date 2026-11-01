@@ -1,52 +1,164 @@
-interface HeatmapProps {
-  title: string;
-  methods: string[];
-  algos: string[];
-  values: Array<Array<number | null>>;
-  metric: string;
+import { useMemo, useState } from "react";
+
+interface Column<T> {
+  key: keyof T | string;
+  header: string;
+  render?: (row: T) => React.ReactNode;
+  sortable?: boolean;
 }
 
-function colorFor(value: number | null, min: number, max: number) {
-  if (value === null || Number.isNaN(value)) return 'rgba(148,163,184,0.08)';
-  const normalized = max === min ? 0.5 : (value - min) / (max - min);
-  const hue = 210 - normalized * 90;
-  return `hsla(${hue}, 90%, 60%, 0.75)`;
+interface DataTableProps<T extends Record<string, any>> {
+  columns: Column<T>[];
+  data: T[];
+  searchPlaceholder?: string;
+  exportFilename?: string;
 }
 
-export function Heatmap({ title, methods, algos, values, metric }: HeatmapProps) {
-  const flattened = values.flat().filter((value): value is number => value !== null && !Number.isNaN(value));
-  const min = flattened.length ? Math.min(...flattened) : 0;
-  const max = flattened.length ? Math.max(...flattened) : 1;
+export function DataTable<T extends Record<string, any>>({
+  columns,
+  data,
+  searchPlaceholder = "Пошук…",
+  exportFilename = "export.csv",
+}: DataTableProps<T>) {
+  const [search, setSearch] = useState("");
+  const [sortKey, setSortKey] = useState<string | null>(null);
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+
+  const filteredData = useMemo(() => {
+    const normalized = search.trim().toLowerCase();
+    const list = normalized
+      ? data.filter((row) =>
+          Object.values(row).join(" ").toLowerCase().includes(normalized),
+        )
+      : data;
+
+    if (!sortKey) return list;
+
+    return [...list].sort((a, b) => {
+      const left = a[sortKey as keyof T];
+      const right = b[sortKey as keyof T];
+
+      if (typeof left === "number" && typeof right === "number") {
+        return sortDirection === "asc" ? left - right : right - left;
+      }
+
+      const leftText = String(left ?? "");
+      const rightText = String(right ?? "");
+      return sortDirection === "asc"
+        ? leftText.localeCompare(rightText)
+        : rightText.localeCompare(leftText);
+    });
+  }, [data, search, sortDirection, sortKey]);
+
+  const handleSort = (key: string) => {
+    if (sortKey === key) {
+      setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
+      return;
+    }
+    setSortKey(key);
+    setSortDirection("asc");
+  };
+
+  const exportCsv = () => {
+    const header = columns.map((column) => column.header).join(",");
+    const rows = filteredData.map((row) =>
+      columns
+        .map((column) => {
+          const value = column.render
+            ? column.render(row)
+            : row[column.key as keyof T as string];
+          return `"${String(value ?? "").replace(/"/g, '""')}"`;
+        })
+        .join(","),
+    );
+    const csv = [header, ...rows].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = exportFilename;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
-      <div className="border-b border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 dark:border-slate-700 dark:text-slate-200">
-        {title} · {metric}
+    <div className="panel overflow-hidden p-0">
+      <div className="flex flex-col gap-3 border-b border-slate-200 px-4 py-3 dark:border-slate-700 md:flex-row md:items-center md:justify-between">
+        <input
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder={searchPlaceholder}
+          className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none focus:border-brand-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 md:max-w-xs"
+        />
+        <button
+          type="button"
+          onClick={exportCsv}
+          className="soft-button self-end md:self-auto"
+        >
+          Експорт CSV
+        </button>
       </div>
-      <div className="overflow-auto">
-        <div className="min-w-[420px] p-3">
-          <div className="mb-2 grid grid-cols-[88px_repeat(5,minmax(52px,1fr))] gap-2 text-center text-[11px] font-medium uppercase text-slate-500 dark:text-slate-400">
-            <div />
-            {methods.map((method) => (
-              <div key={method}>{method}</div>
-            ))}
-          </div>
-          {algos.map((algo, rowIndex) => (
-            <div key={algo} className="grid grid-cols-[88px_repeat(5,minmax(52px,1fr))] gap-2 py-1">
-              <div className="flex items-center text-xs font-medium text-slate-600 dark:text-slate-300">{algo}</div>
-              {values[rowIndex].map((value, colIndex) => (
-                <div
-                  key={`${algo}-${methods[colIndex]}`}
-                  className="flex min-h-12 items-center justify-center rounded-lg border border-slate-100 px-1 text-center text-[11px] font-medium text-slate-700 dark:border-slate-700 dark:text-slate-200"
-                  style={{ background: colorFor(value, min, max) }}
-                  title={`${algo} / ${methods[colIndex]}: ${value ?? 'n/a'}`}
+
+      <div className="max-h-[520px] overflow-auto">
+        <table className="min-w-full text-left text-sm">
+          <thead className="sticky top-0 z-10 bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-100">
+            <tr>
+              {columns.map((column) => (
+                <th
+                  key={String(column.key)}
+                  className="border-b border-slate-200 px-4 py-3 font-medium dark:border-slate-700"
                 >
-                  {value === null ? '—' : value.toFixed(3)}
-                </div>
+                  {column.sortable === false ? (
+                    <span>{column.header}</span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => handleSort(String(column.key))}
+                      className="inline-flex items-center gap-2"
+                    >
+                      {column.header}
+                      {sortKey === String(column.key)
+                        ? sortDirection === "asc"
+                          ? "↑"
+                          : "↓"
+                        : ""}
+                    </button>
+                  )}
+                </th>
               ))}
-            </div>
-          ))}
-        </div>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredData.length === 0 ? (
+              <tr>
+                <td
+                  className="px-4 py-8 text-center text-slate-500 dark:text-slate-400"
+                  colSpan={columns.length}
+                >
+                  Немає даних для відображення.
+                </td>
+              </tr>
+            ) : (
+              filteredData.map((row, rowIndex) => (
+                <tr
+                  key={rowIndex}
+                  className="border-b border-slate-200 last:border-none dark:border-slate-700"
+                >
+                  {columns.map((column) => (
+                    <td
+                      key={`${rowIndex}-${String(column.key)}`}
+                      className="px-4 py-3 align-top text-slate-700 dark:text-slate-200"
+                    >
+                      {column.render
+                        ? column.render(row)
+                        : row[column.key as keyof T as string]}
+                    </td>
+                  ))}
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
       </div>
     </div>
   );
