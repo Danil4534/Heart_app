@@ -1,106 +1,18 @@
-import { useEffect } from "react";
-import { Card } from "@/components/Card";
-import { ConfigPicker } from "@/components/ConfigPicker";
-import { DataTable } from "@/components/DataTable";
-import { Heatmap } from "@/components/Heatmap";
-import { Loader } from "@/components/Loader";
-import { MetricSelect } from "@/components/MetricSelect";
-import { useAppStore } from "@/store/useAppStore";
-
-export function ExperimentsPage() {
-  const {
-    selectedDataset,
-    selectedMetric,
-    metricSource,
-    configs,
-    metricMatrix,
-    selectedConfigIds,
-    setSelectedConfigIds,
-    setSelectedMetric,
-    setMetricSource,
-    fetchMetricMatrix,
-    loading,
-  } = useAppStore();
-
-  useEffect(() => {
-    void fetchMetricMatrix(selectedDataset);
-  }, [selectedDataset, metricSource, selectedMetric, fetchMetricMatrix]);
-
-  const configOptions = configs.map(
-    (config) => `${config.algo}|${config.method}`,
-  );
-
-  return (
-    <div className="space-y-4">
-      <Card
-        title="Порівняння всіх моделей"
-        subtitle={`Датасет ${selectedDataset}`}
-      >
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          <MetricSelect value={selectedMetric} onChange={setSelectedMetric} />
-          <label className="flex flex-col gap-2 text-sm text-slate-600 dark:text-slate-300">
-            <span>Джерело метрик</span>
-            <select
-              value={metricSource}
-              onChange={(event) =>
-                setMetricSource(event.target.value as "cv" | "test")
-              }
-              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-brand-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-            >
-              <option value="cv">CV</option>
-              <option value="test">Test</option>
-            </select>
-          </label>
-        </div>
-      </Card>
-
-      {loading.matrix || loading.configs ? (
-        <Loader label="Оновлення матриці метрик…" />
-      ) : null}
-
-      {metricMatrix ? (
-        <Heatmap
-          title="Матриця алгоритм × метод"
-          methods={metricMatrix.methods}
-          algos={metricMatrix.algos}
-          values={metricMatrix.values}
-          metric={metricMatrix.metric}
-        />
-      ) : null}
-
-      <Card
-        title="Вибір конфігурацій для порівняння"
-        subtitle="Мультивибір моделей для графіків"
-      >
-        <ConfigPicker
-          options={configOptions}
-          value={selectedConfigIds}
-          onChange={setSelectedConfigIds}
-        />
-      </Card>
-
-      <DataTable
-        columns={[
-          { key: "algo", header: "Алгоритм", sortable: true },
-          { key: "method", header: "Метод", sortable: true },
-          {
-            key: "cv",
-            header: "CV",
-            render: (row) => row.cv?.f1?.toFixed(3) ?? "—",
-            sortable: true,
-          },
-          {
-            key: "test",
-            header: "Test",
-            render: (row) => row.test?.f1?.toFixed(3) ?? "—",
-            sortable: true,
-          },
-          { key: "fit_seconds", header: "Fit (s)", sortable: true },
-        ]}
-        data={configs}
-        searchPlaceholder="Пошук по алгоритму або методу…"
-        exportFilename={`configs-${selectedDataset}.csv`}
-      />
-    </div>
-  );
-}
+import { useEffect, useMemo, useState } from "react";
+import { Card } from "../components/Card";
+import { ChartCard } from "../components/ChartCard";
+import { DataTable } from "../components/DataTable";
+import { Heatmap } from "../components/Heatmap";
+import { METRIC_KEYS, METRICS, formatNumber, BALANCE_COLORS, ALGO_MARKERS } from "../data/static";
+import { api } from "../api/client";
+import { useAppStore } from "../store/useAppStore";
+import type { ConfigMetrics, MetricName } from "../types";
+import { CartesianGrid, Legend, Line, LineChart, PolarAngleAxis, PolarGrid, Radar, RadarChart, ResponsiveContainer, Scatter, ScatterChart, Tooltip, XAxis, YAxis, ZAxis, Bar, BarChart } from "recharts";
+const metricLabel=(key:string)=>METRICS[key as MetricName]?.label??key;
+const id=(c:ConfigMetrics)=>`${c.algo}|${c.method}`;
+export function ExperimentsPage(){const {selectedDataset,metricSource,selectedMetric,configs,summary,selectedConfigIds,setSelectedConfigIds}=useAppStore();const [metric,setMetric]=useState<MetricName>(selectedMetric);const [algoFilter,setAlgoFilter]=useState("");const [methodFilter,setMethodFilter]=useState("");const [curves,setCurves]=useState<Awaited<ReturnType<typeof api.getDatasetCurves>>>([]);const [curveError,setCurveError]=useState("");const selected=useMemo(()=>configs.filter(c=>selectedConfigIds.includes(id(c))).slice(0,5),[configs,selectedConfigIds]);
+useEffect(()=>{setMetric(selectedMetric)},[selectedMetric]);useEffect(()=>{if(selected.length){api.getDatasetCurves(selectedDataset,selected.map(id)).then(setCurves).catch(e=>setCurveError(e instanceof Error?e.message:"Не вдалося завантажити криві"));}else setCurves([])},[selectedDataset,selectedConfigIds]);
+const toggle=(key:string)=>{const current=selectedConfigIds;if(current.includes(key))setSelectedConfigIds(current.filter(x=>x!==key));else if(current.length<5)setSelectedConfigIds([...current,key]);};
+const metricRows=configs.map(c=>({id:id(c),...c,...(c[metricSource]??{})}));const methods=Array.from(new Set(configs.map(c=>c.method)));const algos=Array.from(new Set(configs.map(c=>c.algo)));const tableColumns=[{key:"algo",header:"Алгоритм",sortable:true},{key:"method",header:"Метод",sortable:true},...METRIC_KEYS.map(k=>({key:k,header:metricLabel(k),sortable:true,value:(r:any)=>r[metricSource]?.[k],render:(r:any)=><span title={`${metricLabel(k)}: ${formatNumber(r[metricSource]?.[k]??0)}`}>{r[metricSource]?.[k]==null?"—":formatNumber(r[metricSource][k])}<span className="ml-2 inline-block h-1.5 rounded bg-brand-400 align-middle" style={{width:`${Math.max(3,Math.max(0,r[metricSource][k])*36)}px`}}/></span>})),{key:"fit_seconds",header:"Час навчання (с)",sortable:true}];const bestId=summary?`${summary.best.algo}|${summary.best.method}`:"";const baselineId=summary?`${summary.baseline.algo}|${summary.baseline.method}`:"";
+const points=configs.map(c=>({precision:c[metricSource].precision,recall:c[metricSource].recall,algo:c.algo,method:c.method,label:`${c.algo} / ${c.method}`,...c[metricSource]}));const radarData=METRIC_KEYS.filter(k=>k!=="accuracy").map(k=>({metric:metricLabel(k),...Object.fromEntries(selected.map(c=>[id(c),c[metricSource][k]]))}));const chartData=METRIC_KEYS.map(k=>({metric:metricLabel(k),...Object.fromEntries(selected.map(c=>[id(c),c[metricSource][k]]))}));
+return <div className="space-y-4"><div><h1 className="text-2xl font-bold">Порівняння всіх моделей</h1><p className="mt-1 text-sm text-slate-500">Оберіть до 5 комбінацій у heatmap або таблиці для детального порівняння.</p></div><div className="grid gap-4 xl:grid-cols-2"><Heatmap title={`Повнота · ${metricSource}`} methods={methods} algos={algos} values={algos.map(a=>methods.map(m=>configs.find(c=>c.algo===a&&c.method===m)?.[metricSource].recall??null))} metric="recall" onCellClick={(a,m)=>toggle(`${a}|${m}`)} selectedIds={selectedConfigIds} configs={configs} source={metricSource}/><Heatmap title={`F1-міра · ${metricSource}`} methods={methods} algos={algos} values={algos.map(a=>methods.map(m=>configs.find(c=>c.algo===a&&c.method===m)?.[metricSource].f1??null))} metric="f1" onCellClick={(a,m)=>toggle(`${a}|${m}`)} selectedIds={selectedConfigIds} configs={configs} source={metricSource}/></div><Card title="Усі конфігурації"><DataTable columns={tableColumns as any} data={metricRows} exportFilename={`configs-${selectedDataset}.csv`} rowKey={r=>r.id} selectedIds={selectedConfigIds} onToggleRow={toggle} badges={r=>[...(r.id===bestId?["Найкраща"]:[]),...(r.id===baselineId?["Базова"]:[])]} filters={[{label:"Алгоритм",options:algos,value:algoFilter,onChange:setAlgoFilter,getValue:r=>r.algo},{label:"Метод",options:methods,value:methodFilter,onChange:setMethodFilter,getValue:r=>r.method}]}/></Card><div className="grid gap-4 xl:grid-cols-2"><ChartCard title="Профіль метрик вибраних моделей"><div className="h-80">{selected.length?<ResponsiveContainer><RadarChart data={radarData}><PolarGrid/><PolarAngleAxis dataKey="metric"/><Tooltip/><Legend/>{selected.map((c,i)=><Radar key={id(c)} name={id(c)} dataKey={id(c)} stroke={['#2563eb','#f97316','#16a34a','#9333ea','#db2777'][i]} fill={['#2563eb','#f97316','#16a34a','#9333ea','#db2777'][i]} fillOpacity={0.12}/>)}</RadarChart></ResponsiveContainer>:<p className="p-10 text-center text-slate-500">Оберіть моделі в таблиці або heatmap.</p>}</div></ChartCard><ChartCard title={`ROC-криві${curves.length?" та Precision–Recall": ""}`}><div className="grid gap-3 md:grid-cols-2">{(["roc","pr"] as const).map(kind=><div key={kind} className="h-72">{curves.length?<ResponsiveContainer><LineChart><CartesianGrid strokeDasharray="3 3"/><XAxis type="number" dataKey={kind==="roc"?"fpr":"recall"} domain={[0,1]} name={kind==="roc"?"FPR":"Recall"}/><YAxis type="number" dataKey={kind==="roc"?"tpr":"precision"} domain={[0,1]} name={kind==="roc"?"TPR":"Precision"}/><Tooltip/><Legend/>{curves.map((c,i)=><Line key={id(c as any)} data={(kind==="roc"?c.roc.fpr.map((x,j)=>({fpr:x,tpr:c.roc.tpr[j]})):c.pr.recall.map((x,j)=>({recall:x,precision:c.pr.precision[j]})))} dataKey={kind==="roc"?"tpr":"precision"} name={`${c.algo} / ${c.method}`} dot={false} stroke={['#2563eb','#f97316','#16a34a','#9333ea','#db2777'][i]} isAnimationActive={false}/>)}</LineChart></ResponsiveContainer>:<p className="p-8 text-center text-slate-500">{curveError||"Оберіть моделі для побудови кривих."}</p>}</div>)}</div></ChartCard></div><div className="grid gap-4 xl:grid-cols-2"><ChartCard title="Precision vs Recall · усі конфігурації"><div className="h-80"><ResponsiveContainer><ScatterChart><CartesianGrid/><XAxis type="number" dataKey="precision" name="Precision" domain={[0,1]}/><YAxis type="number" dataKey="recall" name="Recall" domain={[0,1]}/><ZAxis range={[70,130]}/><Tooltip cursor={{strokeDasharray:"3 3"}} content={({active,payload})=>active&&payload?.length?<div className="rounded bg-white p-2 text-xs shadow">{String(payload[0].payload.label)}<br/>Precision {formatNumber(payload[0].payload.precision)} · Recall {formatNumber(payload[0].payload.recall)}</div>:null}/>{methods.map(m=><Scatter key={m} name={m} data={points.filter(p=>p.method===m)} fill={BALANCE_COLORS[m]}/>)}</ScatterChart></ResponsiveContainer></div><p className="mt-2 text-xs text-slate-500">Форми алгоритмів: {Object.entries(ALGO_MARKERS).map(([a,s])=>`${a} — ${s}`).join(" · ")}</p></ChartCard><ChartCard title={`${metricLabel(metric)} вибраних моделей`}><div className="mb-2 flex gap-2"><label className="text-xs">Метрика<select aria-label="Метрика графіка" value={metric} onChange={e=>setMetric(e.target.value as MetricName)} className="ml-2 rounded border p-1">{METRIC_KEYS.map(k=><option key={k} value={k}>{metricLabel(k)}</option>)}</select></label></div><div className="h-72"><ResponsiveContainer><BarChart data={chartData}><CartesianGrid strokeDasharray="3 3"/><XAxis dataKey="metric"/><YAxis/><Tooltip/><Legend/>{selected.map((c,i)=><Bar key={id(c)} dataKey={id(c)} fill={['#2563eb','#f97316','#16a34a','#9333ea','#db2777'][i]}/>)}</BarChart></ResponsiveContainer></div></ChartCard></div><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{selected.map(c=>{const cm=c.cm;const tn=cm?.[0]?.[0]??0,fp=cm?.[0]?.[1]??0,fn=cm?.[1]?.[0]??0,tp=cm?.[1]?.[1]??0;return <Card key={id(c)} title={`${c.algo} · ${c.method}`}><div className="grid grid-cols-2 gap-2 text-center"><div className="rounded bg-slate-100 p-3 dark:bg-slate-800">TN <b>{tn}</b></div><div className="rounded bg-red-50 p-3 dark:bg-red-950/30">FP <b>{fp}</b></div><div className="rounded bg-amber-50 p-3 dark:bg-amber-950/30">FN <b>{fn}</b></div><div className="rounded bg-green-50 p-3 dark:bg-green-950/30">TP <b>{tp}</b></div></div><div className="mt-2 flex justify-between text-xs text-slate-500"><span>Факт: Низький / Високий</span><span>Прогноз: стовпці</span></div></Card>})}</div></div>}

@@ -1,49 +1,6 @@
-import { Card } from "@/components/Card";
-import { Loader } from "@/components/Loader";
-import { useAppStore } from "@/store/useAppStore";
-
-export function PreprocessingPage() {
-  const { preprocessing, loading, selectedDataset } = useAppStore();
-  if (loading.preprocessing) {
-    return <Loader label="Завантаження опису підготовки даних…" />;
-  }
-
-  return (
-    <Card title="Попередня обробка" subtitle={`Датасет ${selectedDataset}`}>
-      <div className="space-y-3">
-        {preprocessing.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-slate-300 p-6 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
-            Опис етапів обробки відсутній.
-          </div>
-        ) : (
-          preprocessing.map((step) => (
-            <div
-              key={step.step}
-              className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/60"
-            >
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                  Крок {step.step}: {step.name}
-                </div>
-                <span className="rounded-full bg-brand-50 px-2 py-1 text-xs font-medium text-brand-700 dark:bg-brand-950/40 dark:text-brand-200">
-                  {step.transformer}
-                </span>
-              </div>
-              <div className="mt-2 text-sm text-slate-600 dark:text-slate-300">
-                {step.description}
-              </div>
-              {step.columns && (
-                <div className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                  Колонки:{" "}
-                  {Array.isArray(step.columns)
-                    ? step.columns.join(", ")
-                    : JSON.stringify(step.columns)}
-                </div>
-              )}
-            </div>
-          ))
-        )}
-      </div>
-    </Card>
-  );
-}
+import { Card } from "../components/Card";
+import { DataTable } from "../components/DataTable";
+import { PREPROCESSING_STEPS } from "../data/static";
+import { useAppStore } from "../store/useAppStore";
+const pipeline=["Імпутація","Категорія ІМТ","Кодування і масштабування","Семплер: SMOTE / ADASYN / Borderline-SMOTE","Класифікатор"];
+export function PreprocessingPage(){const ds=useAppStore(s=>s.selectedDataset);const rows=PREPROCESSING_STEPS.map(([step,operation,rationale])=>({step,operation,rationale}));return <div className="space-y-4"><h1 className="text-2xl font-bold">Попередня обробка</h1><Card title="Етапи обробки" subtitle={`Датасет ${ds}`}><DataTable columns={[{key:"step",header:"Етап"},{key:"operation",header:"Операція"},{key:"rationale",header:"Ознаки та обґрунтування"}]} data={rows} exportFilename="preprocessing.csv"/></Card><Card title="Конвеєр обробки"><div className="flex flex-wrap items-center justify-center gap-2">{pipeline.map((p,i)=><div className="flex items-center gap-2" key={p}><div className={`max-w-52 rounded-xl border px-4 py-3 text-center text-sm font-medium ${i===3?"border-dashed border-violet-400 bg-violet-50 text-violet-800 dark:bg-violet-950/30 dark:text-violet-200":"border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800"}`}>{p}{i===3&&<div className="mt-1 text-xs font-normal">Пропускається під час прогнозування</div>}</div>{i<pipeline.length-1&&<span className="text-xl text-brand-500" aria-hidden="true">→</span>}</div>)}</div><p className="mt-5 rounded-xl bg-slate-100 p-4 text-sm dark:bg-slate-800">Усі перетворення та оверсемплінг навчаються лише на навчальній частині кожного фолда, що виключає витік даних.</p></Card></div>}

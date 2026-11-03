@@ -1,0 +1,7 @@
+import { useRef, type ReactNode } from "react";
+import { Download } from "lucide-react";
+export function ChartCard({title, subtitle, children, className=""}:{title:string;subtitle?:string;children:ReactNode;className?:string}) {
+ const ref=useRef<HTMLDivElement>(null);
+ const download=async()=>{const svg=ref.current?.querySelector("svg"); if(!svg)return; const clone=svg.cloneNode(true) as SVGSVGElement; clone.setAttribute("xmlns","http://www.w3.org/2000/svg"); const text=new XMLSerializer().serializeToString(clone); const image=new Image(); image.onload=()=>{const canvas=document.createElement("canvas");canvas.width=1200;canvas.height=700;const ctx=canvas.getContext("2d");if(ctx){ctx.fillStyle=getComputedStyle(document.body).backgroundColor||"#fff";ctx.fillRect(0,0,canvas.width,canvas.height);ctx.drawImage(image,0,0,canvas.width,canvas.height);const a=document.createElement("a");a.download=`${title.toLowerCase().replace(/[^a-z0-9]+/g,"-")}.png`;a.href=canvas.toDataURL("image/png");a.click();}}; image.src=`data:image/svg+xml;charset=utf-8,${encodeURIComponent(text)}`;};
+ return <section className={`panel relative ${className}`}><div className="mb-3 flex items-start justify-between gap-3"><div><h2 className="font-semibold">{title}</h2>{subtitle&&<p className="mt-1 text-xs text-slate-500">{subtitle}</p>}</div><button type="button" aria-label={`Завантажити графік ${title} у PNG`} title="Завантажити PNG" onClick={()=>void download()} className="soft-button p-2"><Download size={15}/></button></div><div ref={ref}>{children}</div></section>;
+}
